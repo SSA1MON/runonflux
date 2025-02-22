@@ -7,6 +7,8 @@ import webbrowser
 from loguru import logger
 import os
 from dotenv import load_dotenv
+from typing import List, Tuple, Optional
+
 
 # Загружаем переменные из .env файла
 load_dotenv()
@@ -17,7 +19,7 @@ APP_NAME = os.getenv("APP_NAME")
 EXTERNAL_API_URL = os.getenv("EXTERNAL_API_URL")
 
 
-def extract_ips(data):
+def extract_ips(data: dict) -> List[Tuple[str, str]]:
     """
     Извлекает IP-адреса из ответа API.
 
@@ -38,7 +40,7 @@ def extract_ips(data):
     return ip_list
 
 
-def log_response(response, server_name):
+def log_response(response: requests.Response, server_name: str) -> None:
     """
     Логирует ответ от сервера.
 
@@ -49,7 +51,7 @@ def log_response(response, server_name):
     logger.debug(f"Ответ от сервера {server_name} - Тело ответа: {response.text}")
 
 
-def get_app_location():
+def get_app_location() -> List[Tuple[str, str]]:
     """
     Запрашивает данные о местоположении приложения и возвращает список IP-адресов.
     """
@@ -70,7 +72,7 @@ def get_app_location():
     return []
 
 
-def get_external_data():
+def get_external_data() -> List[str]:
     """
     Получает данные из внешнего источника и возвращает список IP-адресов черного списка.
     """
@@ -94,7 +96,7 @@ def get_external_data():
     return []
 
 
-def is_ip_in_blacklist(ip, blacklist):
+def is_ip_in_blacklist(ip: str, blacklist: List[str]) -> bool:
     """
     Проверяет, является ли IP-адрес в черном списке или попадает ли в одну из сетей с маской.
 
@@ -115,11 +117,11 @@ def is_ip_in_blacklist(ip, blacklist):
     return False
 
 
-def remove_app(loginphrase, signature, app_ip, port=16127):
+def remove_app(loginphrase: str, signature: str, app_ip: str, port: int = 16127) -> None:
     """Удаляет приложение через GET запрос."""
 
     # Преобразуем значения в LF (URL-encoded)
-    def utf8_to_LF(value):
+    def utf8_to_LF(value: str) -> str:
         return urllib.parse.quote(value)
 
     # Перекодируем данные
@@ -145,7 +147,7 @@ def remove_app(loginphrase, signature, app_ip, port=16127):
         logger.error(f"Ошибка запроса к API удаления приложения: {e}")
 
 
-def get_loginphrase():
+def get_loginphrase() -> Optional[str]:
     """Получает loginphrase для авторизации."""
     url = f"{FLUX_API_URL}/id/loginphrase"
     try:
@@ -157,7 +159,7 @@ def get_loginphrase():
     return None
 
 
-def open_zelcore_signature(loginphrase):
+def open_zelcore_signature(loginphrase: str) -> None:
     """Открывает Zelcore для подписи loginphrase."""
     encoded_message = urllib.parse.quote(loginphrase)
     sign_url = (
@@ -167,7 +169,7 @@ def open_zelcore_signature(loginphrase):
     webbrowser.open(sign_url)
 
 
-def provide_signature(loginphrase, signature):
+def provide_signature(loginphrase: str, signature: str) -> bool:
     """Подтверждает подпись через API providesign."""
     url = f"{FLUX_API_URL}/id/providesign"
     payload = json.dumps({"address": FLUX_ID, "message": loginphrase, "signature": signature})
@@ -181,7 +183,7 @@ def provide_signature(loginphrase, signature):
     return False
 
 
-def verify_login(loginphrase, signature):
+def verify_login(loginphrase: str, signature: str) -> Optional[dict]:
     """Подтверждает логин через API verifylogin."""
     url = f"{FLUX_API_URL}/id/verifylogin"
     payload = json.dumps({"loginPhrase": loginphrase, "zelid": FLUX_ID, "signature": signature})
@@ -197,7 +199,7 @@ def verify_login(loginphrase, signature):
     return None
 
 
-def authenticate():
+def authenticate() -> Tuple[Optional[str], Optional[str]]:
     """
     Процесс аутентификации пользователя через Zelcore.
     """
@@ -220,7 +222,7 @@ def authenticate():
     return loginphrase, signature
 
 
-def compare_and_remove():
+def compare_and_remove() -> None:
     """
     Сравнивает IP-адреса из приложения с черным списком и инициирует удаление приложения, если IP совпали.
     """
