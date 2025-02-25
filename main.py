@@ -4,6 +4,7 @@ import ipaddress
 import json
 import urllib.parse
 import webbrowser
+import subprocess
 from loguru import logger
 import os
 from dotenv import load_dotenv
@@ -17,6 +18,7 @@ FLUX_API_URL = "https://api.runonflux.io"
 FLUX_ID = os.getenv("FLUX_ID")
 APP_NAME = os.getenv("APP_NAME")
 EXTERNAL_API_URL = os.getenv("EXTERNAL_API_URL")
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
 
 
 def extract_ips(data: dict) -> List[Tuple[str, str]]:
@@ -158,16 +160,17 @@ def get_loginphrase() -> Optional[str]:
         logger.error(f"Ошибка запроса к API для получения loginphrase: {e}")
     return None
 
-
-def open_zelcore_signature(loginphrase: str) -> None:
-    """Открывает Zelcore для подписи loginphrase."""
-    encoded_message = urllib.parse.quote(loginphrase)
-    sign_url = (
-        f"zel:?action=sign&message={encoded_message}"
-        f"&icon=https%3A//raw.githubusercontent.com/runonflux/flux/master/zelID.svg"
+def sign_message_in_js(message: str, private_key: str) -> str:
+    """Подписывает сообщение с помощью JS-скрипта."""
+    result = subprocess.run(
+        ["node", "sign_message\sign_message.js", message, private_key],
+        capture_output=True,
+        text=True
     )
-    webbrowser.open(sign_url)
-
+    if result.returncode == 0:
+        return result.stdout.strip()
+    else:
+        raise Exception("Error in JS script: " + result.stderr)
 
 def provide_signature(loginphrase: str, signature: str) -> bool:
     """Подтверждает подпись через API providesign."""
@@ -181,7 +184,6 @@ def provide_signature(loginphrase: str, signature: str) -> bool:
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка запроса для подтверждения подписи: {e}")
     return False
-
 
 def verify_login(loginphrase: str, signature: str) -> Optional[dict]:
     """Подтверждает логин через API verifylogin."""
@@ -198,18 +200,21 @@ def verify_login(loginphrase: str, signature: str) -> Optional[dict]:
         logger.error(f"Ошибка запроса для подтверждения логина: {e}")
     return None
 
-
 def authenticate() -> Tuple[Optional[str], Optional[str]]:
     """
-    Процесс аутентификации пользователя через Zelcore.
+    Процесс аутентификации пользователя с автоматической подписью.
     """
     loginphrase = get_loginphrase()
     if not loginphrase:
         logger.error("Ошибка получения loginphrase")
         return None, None
-
-    open_zelcore_signature(loginphrase)
-    signature = input("Введите полученную подпись: ").strip()
+    
+    try:
+        signature = sign_message_in_js(loginphrase, PRIVATE_KEY)
+    except Exception as e:
+        logger.error(f"Ошибка подписи сообщения: {e}")
+        return None, None
+    
     if not provide_signature(loginphrase, signature):
         logger.error("Ошибка подтверждения подписи")
         return None, None
@@ -220,6 +225,7 @@ def authenticate() -> Tuple[Optional[str], Optional[str]]:
         return None, None
 
     return loginphrase, signature
+
 
 
 def compare_and_remove() -> None:
